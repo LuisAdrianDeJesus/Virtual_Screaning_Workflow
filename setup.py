@@ -3,20 +3,11 @@
 """
 Virtual Screening Pipeline Setup
 
-This script:
-
-1. Creates project directories
-2. Checks Python dependencies
-3. Installs missing packages
-4. Verifies AutoDock Vina
-5. Verifies Meeko utilities
-6. Generates dependency reports
-7. Creates project configuration file
+Creates project structure and checks dependencies.
 """
 
-import os
-import sys
 import json
+import sys
 import shutil
 import subprocess
 import importlib
@@ -33,7 +24,8 @@ REQUIRED_PACKAGES = {
     "tqdm": "tqdm",
     "Bio": "biopython",
     "meeko": "meeko",
-    "requests":"requests"
+    "requests": "requests",
+    "matplotlib": "matplotlib"
 }
 
 # ==========================================================
@@ -41,21 +33,16 @@ REQUIRED_PACKAGES = {
 # ==========================================================
 
 def install_package(package_name):
-    """
-    Install package using pip
-    """
 
     try:
 
-        subprocess.check_call(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                package_name
-            ]
-        )
+        subprocess.check_call([
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            package_name
+        ])
 
         return True
 
@@ -65,9 +52,6 @@ def install_package(package_name):
 
 
 def check_python_package(module_name, package_name):
-    """
-    Verify Python package
-    """
 
     try:
 
@@ -77,16 +61,25 @@ def check_python_package(module_name, package_name):
 
     except ImportError:
 
-        print(f"[WARNING] {module_name} not found.")
-        print(f"[INFO] Installing {package_name}...")
+        print(
+            f"[WARNING] {module_name} not found."
+        )
 
-        installed = install_package(package_name)
+        print(
+            f"[INFO] Installing {package_name}..."
+        )
 
-        if installed:
+        success = install_package(
+            package_name
+        )
+
+        if success:
 
             try:
 
-                importlib.import_module(module_name)
+                importlib.import_module(
+                    module_name
+                )
 
                 return "INSTALLED"
 
@@ -94,17 +87,12 @@ def check_python_package(module_name, package_name):
 
                 return "FAILED"
 
-        else:
-
-            return "FAILED"
+        return "FAILED"
 
 
-def check_executable(executable):
-    """
-    Verify executable in PATH
-    """
+def check_vina():
 
-    if shutil.which(executable):
+    if shutil.which("vina"):
 
         return "FOUND"
 
@@ -112,35 +100,26 @@ def check_executable(executable):
 
 
 def get_vina_version():
-    """
-    Get Vina version
-    """
 
     try:
 
         result = subprocess.run(
+
             ["vina", "--version"],
+
             capture_output=True,
             text=True
+
         )
 
-        version = result.stdout.strip()
-
-        if version:
-
-            return version
-
-        return "VERSION UNKNOWN"
+        return result.stdout.strip()
 
     except Exception:
 
-        return "VINA NOT DETECTED"
+        return "VERSION NOT DETECTED"
 
 
-def create_project_structure(project_dir):
-    """
-    Create project folders
-    """
+def create_directories(project_dir):
 
     folders = [
 
@@ -152,20 +131,23 @@ def create_project_structure(project_dir):
 
     ]
 
-    project_dir.mkdir(exist_ok=True)
+    project_dir.mkdir(
+        exist_ok=True
+    )
 
     for folder in folders:
 
-        (project_dir / folder).mkdir(exist_ok=True)
-
+        (project_dir / folder).mkdir(
+            exist_ok=True
+        )
 
 # ==========================================================
-# SETUP START
+# MAIN
 # ==========================================================
 
-print("\n=================================================")
-print("      Virtual Screening Pipeline Setup")
-print("=================================================\n")
+print("\n================================================")
+print(" Virtual Screening Pipeline Setup")
+print("================================================\n")
 
 project_name = input(
     "Enter project name: "
@@ -173,154 +155,186 @@ project_name = input(
 
 if not project_name:
 
-    print("\n[ERROR] Project name cannot be empty.\n")
+    print(
+        "\n[ERROR] Project name cannot be empty.\n"
+    )
+
     sys.exit()
 
-project_path = Path(project_name)
+project_path = Path(
+    project_name
+)
 
-create_project_structure(project_path)
+create_directories(
+    project_path
+)
 
-print("\n[INFO] Project structure created.\n")
-
-report_lines = []
+print(
+    "\n[INFO] Project structure created.\n"
+)
 
 # ==========================================================
-# PYTHON DEPENDENCIES
+# DEPENDENCY CHECK
 # ==========================================================
 
-print("\n[INFO] Checking Python packages...\n")
+report = []
+
+print(
+    "\n[INFO] Checking Python dependencies...\n"
+)
 
 for module_name, package_name in REQUIRED_PACKAGES.items():
 
     status = check_python_package(
+
         module_name,
+
         package_name
+
     )
 
     print(
         f"{module_name:<20} {status}"
     )
 
-    report_lines.append(
+    report.append(
         f"{module_name:<25} {status}"
     )
 
 # ==========================================================
-# EXTERNAL SOFTWARE
+# VINA CHECK
 # ==========================================================
 
-print("\n[INFO] Checking external tools...\n")
+print(
+    "\n[INFO] Checking AutoDock Vina...\n"
+)
 
-TOOLS = [
-    "vina",
-    "mk_prepare_ligand.py",
-    "mk_prepare_receptor.py"
-]
+vina_status = check_vina()
 
-missing_tools = []
+report.append(
+    f"{'vina':<25} {vina_status}"
+)
 
-for tool in TOOLS:
-
-    status = check_executable(tool)
-
-    print(
-        f"{tool:<30} {status}"
-    )
-
-    report_lines.append(
-        f"{tool:<30} {status}"
-    )
-
-    if status == "NOT FOUND":
-
-        missing_tools.append(tool)
-
-# ==========================================================
-# VINA VERSION
-# ==========================================================
+print(
+    f"{'vina':<20} {vina_status}"
+)
 
 vina_version = get_vina_version()
 
-report_lines.append("")
-report_lines.append("=" * 40)
-report_lines.append("AUTODOCK VINA VERSION")
-report_lines.append(vina_version)
-
 # ==========================================================
-# DEPENDENCY REPORT
+# REPORT FILE
 # ==========================================================
 
-report_file = project_path / "dependencies_report.txt"
+report_file = (
+
+    project_path /
+
+    "dependencies_report.txt"
+
+)
 
 with open(
     report_file,
     "w",
     encoding="utf-8"
-) as report:
+) as f:
 
-    report.write(
+    f.write(
         "Virtual Screening Pipeline\n"
     )
 
-    report.write(
-        "=" * 50 + "\n\n"
+    f.write(
+        "=" * 60 + "\n\n"
     )
 
-    for line in report_lines:
+    for line in report:
 
-        report.write(
+        f.write(
             line + "\n"
         )
 
+    f.write("\n")
+
+    f.write(
+        "AutoDock Vina Version:\n"
+    )
+
+    f.write(
+        vina_version + "\n"
+    )
+
 # ==========================================================
-# PROJECT CONFIGURATION FILE
+# PROJECT CONFIG
 # ==========================================================
 
 config = {
 
-    "project_name": project_name,
+    "project_name":
+
+        project_name,
+
+    "project_path":
+
+        str(
+            project_path.resolve()
+        ),
 
     "directories": {
 
-        "ligands": "ligands_docking",
-        "receptor": "receptor_docking",
-        "poses": "docking_poses",
-        "logs": "docking_log",
-        "results": "results"
+        "ligands":
+            "ligands_docking",
+
+        "receptor":
+            "receptor_docking",
+
+        "poses":
+            "docking_poses",
+
+        "logs":
+            "docking_log",
+
+        "results":
+            "results"
 
     },
 
-    "vina_version": vina_version
+    "vina_version":
+
+        vina_version
 
 }
 
-config_file = "project_config.json"
+config_file = ( 
+
+    "project_config.json"
+
+)
 
 with open(
     config_file,
     "w",
     encoding="utf-8"
-) as cfg:
+) as f:
 
     json.dump(
         config,
-        cfg,
+        f,
         indent=4
     )
 
 # ==========================================================
-# SUMMARY
+# FINISH
 # ==========================================================
 
-print("\n=================================================")
-print("               SETUP COMPLETED")
-print("=================================================")
+print("\n================================================")
+print(" Setup Completed")
+print("================================================")
 
 print(
-    f"\nProject directory:\n{project_path.resolve()}"
+    f"\nProject location:\n{project_path.resolve()}"
 )
 
-print("\nCreated folders:")
+print("\nCreated directories:")
 
 print("  ligands_docking/")
 print("  receptor_docking/")
@@ -333,27 +347,32 @@ print("\nGenerated files:")
 print("  dependencies_report.txt")
 print("  project_config.json")
 
-if missing_tools:
-
-    print("\n[WARNING] Missing external tools:")
-
-    for tool in missing_tools:
-
-        print(f"   - {tool}")
+if vina_status == "NOT FOUND":
 
     print(
-        "\nInstall the missing tools before running the pipeline."
+        "\n[WARNING] AutoDock Vina was not detected."
+    )
+
+    print(
+        "Install Vina and add it to PATH before docking."
     )
 
 else:
 
     print(
-        "\n[OK] All required external tools were detected."
+        "\n[OK] AutoDock Vina detected."
     )
 
-print("\nNext step:")
+print("\nNext steps:")
 
-print("   python prepare_ligands.py")
-print("   python prepare_receptor.py")
+print(
+    "  python prepare_ligands.py"
+)
 
-print("\nSetup finished successfully.\n")
+print(
+    "  python prepare_receptor.py"
+)
+
+print(
+    "\nSetup completed successfully.\n"
+)

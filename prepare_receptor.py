@@ -8,12 +8,12 @@ Prepare receptor for AutoDock Vina docking.
 Input:
     - Local PDB file
     OR
-    - PDB code
+    - PDB ID
 
 Output:
     receptor_docking/
-        receptor.pdbqt
         receptor_original.pdb
+        receptor.pdbqt
         conf.txt
         receptor_info.json
 """
@@ -24,58 +24,75 @@ import subprocess
 from pathlib import Path
 
 import requests
-from Bio.PDB import PDBParser
-from Bio.PDB import PDBIO
-from Bio.PDB import Select
 
-# =====================================================
+# ==========================================================
 # FUNCTIONS
-# =====================================================
+# ==========================================================
 
 def load_project():
 
-    config_file = Path("project_config.json")
+    project_dirs = list(
+        Path(".").glob("*/project_config.json")
+    )
 
-    if not config_file.exists():
+    if len(project_dirs) == 0:
 
         raise FileNotFoundError(
-            "project_config.json not found.\nRun setup.py first."
+            "project_config.json not found."
         )
 
-    with open(config_file) as f:
+    with open(project_dirs[0]) as f:
+
         return json.load(f)
 
 
-def download_pdb(pdb_id, output_file):
+def download_pdb(
+    pdb_id,
+    output_file
+):
 
-    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+    url = (
+        f"https://files.rcsb.org/download/"
+        f"{pdb_id}.pdb"
+    )
 
     response = requests.get(url)
 
     if response.status_code != 200:
 
         raise Exception(
-            f"Could not download PDB {pdb_id}"
+            f"Unable to download {pdb_id}"
         )
 
-    with open(output_file, "w") as f:
-        f.write(response.text)
+    with open(
+        output_file,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(
+            response.text
+        )
 
 
-def ask_parameter(message, default):
+def ask_parameter(
+    text,
+    default
+):
 
     value = input(
-        f"{message} [{default}]: "
+        f"{text} [{default}]: "
     ).strip()
 
     if value == "":
+
         return default
 
     return value
 
 
 def save_conf_file(
-    conf_path,
+    conf_file,
     center_x,
     center_y,
     center_z,
@@ -87,15 +104,31 @@ def save_conf_file(
     energy_range
 ):
 
-    with open(conf_path, "w") as f:
+    with open(conf_file, "w") as f:
 
-        f.write(f"center_x = {center_x}\n")
-        f.write(f"center_y = {center_y}\n")
-        f.write(f"center_z = {center_z}\n\n")
+        f.write(
+            f"center_x = {center_x}\n"
+        )
 
-        f.write(f"size_x = {size_x}\n")
-        f.write(f"size_y = {size_y}\n")
-        f.write(f"size_z = {size_z}\n\n")
+        f.write(
+            f"center_y = {center_y}\n"
+        )
+
+        f.write(
+            f"center_z = {center_z}\n\n"
+        )
+
+        f.write(
+            f"size_x = {size_x}\n"
+        )
+
+        f.write(
+            f"size_y = {size_y}\n"
+        )
+
+        f.write(
+            f"size_z = {size_z}\n\n"
+        )
 
         f.write(
             f"exhaustiveness = {exhaustiveness}\n"
@@ -110,75 +143,111 @@ def save_conf_file(
         )
 
 
-# =====================================================
-# MAIN
-# =====================================================
+def detect_receptor_tool():
+
+    import shutil
+
+    if shutil.which(
+        "mk_prepare_receptor"
+    ):
+
+        return "mk_prepare_receptor"
+
+    if shutil.which(
+        "mk_prepare_receptor.py"
+    ):
+
+        return "mk_prepare_receptor.py"
+
+    raise RuntimeError(
+        "Meeko receptor preparation tool not found."
+    )
+
+
+# ==========================================================
+# START
+# ==========================================================
 
 print("\n====================================")
-print(" Receptor Preparation Module")
+print(" Receptor Preparation")
 print("====================================\n")
 
 config = load_project()
 
-project_name = config["project_name"]
-
-project_dir = Path(project_name)
+project_dir = Path(
+    config["project_path"]
+)
 
 receptor_dir = (
     project_dir /
     "receptor_docking"
 )
 
-print("\nInput options:")
-print("1. Local PDB file")
-print("2. Download PDB from RCSB")
+# ==========================================================
+# INPUT SOURCE
+# ==========================================================
 
-choice = input(
-    "\nSelect option (1/2): "
+print("Select input source:")
+
+print(
+    "\n1 - Local PDB file"
+)
+
+print(
+    "2 - Download from PDB"
+)
+
+option = input(
+    "\nOption: "
 ).strip()
 
-pdb_file = receptor_dir / "receptor_original.pdb"
+original_pdb = (
+    receptor_dir /
+    "receptor_original.pdb"
+)
 
-# =====================================================
-# LOCAL PDB
-# =====================================================
+# ==========================================================
+# LOCAL FILE
+# ==========================================================
 
-if choice == "1":
+if option == "1":
 
-    pdb_path = input(
-        "\nEnter PDB file path: "
+    pdb_file = input(
+        "\nPDB file path: "
     ).strip()
 
-    pdb_path = Path(pdb_path)
+    pdb_file = Path(
+        pdb_file
+    )
 
-    if not pdb_path.exists():
+    if not pdb_file.exists():
 
         raise FileNotFoundError(
             "PDB file not found."
         )
 
     shutil.copy(
-        pdb_path,
-        pdb_file
+        pdb_file,
+        original_pdb
     )
 
-# =====================================================
-# DOWNLOAD PDB
-# =====================================================
+# ==========================================================
+# RCSB DOWNLOAD
+# ==========================================================
 
-elif choice == "2":
+elif option == "2":
 
     pdb_id = input(
-        "\nEnter PDB code: "
+        "\nPDB ID: "
     ).strip().upper()
+
+    print(
+        f"\nDownloading {pdb_id}..."
+    )
 
     download_pdb(
         pdb_id,
-        pdb_file
-    )
-
-    print(
-        f"\nDownloaded {pdb_id}"
+        original_pdb
     )
 
 else:
@@ -187,62 +256,67 @@ else:
         "Invalid option."
     )
 
-# =====================================================
+# ==========================================================
 # BOX PARAMETERS
-# =====================================================
+# ==========================================================
 
-print("\nDocking Box Parameters")
+print(
+    "\nDocking box parameters"
+)
 
 center_x = ask_parameter(
-    "Center X",
+    "center_x",
     "0"
 )
 
 center_y = ask_parameter(
-    "Center Y",
+    "center_y",
     "0"
 )
 
 center_z = ask_parameter(
-    "Center Z",
+    "center_z",
     "0"
 )
 
 size_x = ask_parameter(
-    "Size X",
+    "size_x",
     "20"
 )
 
 size_y = ask_parameter(
-    "Size Y",
+    "size_y",
     "20"
 )
 
 size_z = ask_parameter(
-    "Size Z",
+    "size_z",
     "20"
 )
 
 exhaustiveness = ask_parameter(
-    "Exhaustiveness",
+    "exhaustiveness",
     "8"
 )
 
 num_modes = ask_parameter(
-    "Number of modes",
+    "num_modes",
     "9"
 )
 
 energy_range = ask_parameter(
-    "Energy range",
+    "energy_range",
     "3"
 )
 
-# =====================================================
-# CREATE CONF FILE
-# =====================================================
+# ==========================================================
+# SAVE CONF
+# ==========================================================
 
-conf_file = receptor_dir / "conf.txt"
+conf_file = (
+    receptor_dir /
+    "conf.txt"
+)
 
 save_conf_file(
 
@@ -262,9 +336,17 @@ save_conf_file(
 
 )
 
-# =====================================================
+# ==========================================================
 # PREPARE RECEPTOR
-# =====================================================
+# ==========================================================
+
+print(
+    "\nPreparing receptor..."
+)
+
+preparation_tool = (
+    detect_receptor_tool()
+)
 
 receptor_pdbqt = (
     receptor_dir /
@@ -273,43 +355,47 @@ receptor_pdbqt = (
 
 command = [
 
-    "mk_prepare_receptor.py",
+    preparation_tool,
 
     "-i",
-    str(pdb_file),
+    str(original_pdb),
 
     "-o",
     str(receptor_pdbqt)
 
 ]
 
-print("\nPreparing receptor...\n")
-
 result = subprocess.run(
+
     command,
+
     capture_output=True,
+
     text=True
+
 )
 
 if result.returncode != 0:
 
-    print(result.stderr)
+    print(
+        result.stderr
+    )
 
-    raise Exception(
+    raise RuntimeError(
         "Receptor preparation failed."
     )
 
-# =====================================================
-# RECEPTOR INFO
-# =====================================================
+# ==========================================================
+# SAVE INFO
+# ==========================================================
 
 info = {
 
-    "receptor_file":
-        "receptor.pdbqt",
-
     "original_pdb":
-        "receptor_original.pdb",
+        original_pdb.name,
+
+    "receptor_pdbqt":
+        receptor_pdbqt.name,
 
     "center_x":
         center_x,
@@ -341,9 +427,12 @@ info = {
 }
 
 with open(
+
     receptor_dir /
     "receptor_info.json",
+
     "w"
+
 ) as f:
 
     json.dump(
@@ -352,18 +441,25 @@ with open(
         indent=4
     )
 
-# =====================================================
-# DONE
-# =====================================================
+# ==========================================================
+# SUMMARY
+# ==========================================================
 
 print("\n====================================")
-print(" Receptor preparation completed")
+print(" Receptor Preparation Completed")
 print("====================================")
 
 print(
-    f"\nPDBQT saved in:\n{receptor_pdbqt}"
+    f"\nReceptor:\n{receptor_pdbqt}"
 )
 
 print(
-    f"\nConfiguration saved in:\n{conf_file}"
+    f"\nConfig:\n{conf_file}"
 )
+
+print(
+    f"\nMetadata:\n"
+    f"{receptor_dir / 'receptor_info.json'}"
+)
+
+print("\nDone.\n")

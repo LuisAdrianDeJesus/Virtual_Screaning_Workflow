@@ -3,20 +3,23 @@
 """
 prepare_ligands.py
 
+Prepare ligands for AutoDock Vina virtual screening.
+
 Input:
-    CSV file containing:
+    CSV file with columns:
+
         id_ligand
         smiles
 
 Output:
-    ligands_docking/*.pdbqt
+    ligands_docking/
+        *.pdbqt
+
     ligands_metadata.csv
 """
 
 import json
-import os
 import re
-import subprocess
 from pathlib import Path
 
 import pandas as pd
@@ -25,10 +28,32 @@ from tqdm import tqdm
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+from meeko import MoleculePreparation
+from meeko import PDBQTWriterLegacy
+
 
 # ==========================================================
 # FUNCTIONS
 # ==========================================================
+
+def load_project():
+
+    project_dirs = list(
+        Path(".").glob("*/project_config.json")
+    )
+
+    if len(project_dirs) == 0:
+
+        raise FileNotFoundError(
+            "project_config.json not found.\nRun setup.py first."
+        )
+
+    config_file = project_dirs[0]
+
+    with open(config_file) as f:
+
+        return json.load(f)
+
 
 def sanitize_filename(name):
 
@@ -39,27 +64,12 @@ def sanitize_filename(name):
     )
 
 
-def load_project():
-
-    config_file = Path("project_config.json")
-
-    if not config_file.exists():
-
-        raise FileNotFoundError(
-            "project_config.json not found.\n"
-            "Run setup.py first."
-        )
-
-    with open(config_file) as f:
-
-        return json.load(f)
-
-
-def create_3d_structure(smiles):
+def smiles_to_mol(smiles):
 
     mol = Chem.MolFromSmiles(smiles)
 
     if mol is None:
+
         return None
 
     mol = Chem.AddHs(mol)
@@ -70,69 +80,84 @@ def create_3d_structure(smiles):
     )
 
     if status != 0:
+
         return None
 
-    AllChem.UFFOptimizeMolecule(mol)
+    AllChem.UFFOptimizeMolecule(
+        mol
+    )
 
     return mol
 
 
-def sdf_to_pdbqt(sdf_file, pdbqt_file):
+def mol_to_pdbqt(mol, output_file):
 
-    command = [
+    preparator = MoleculePreparation()
 
-        "mk_prepare_ligand.py",
-
-        "-i",
-        str(sdf_file),
-
-        "-o",
-        str(pdbqt_file)
-
-    ]
-
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True
+    mol_setups = preparator.prepare(
+        mol
     )
 
-    return result.returncode == 0
+    pdbqt_string = PDBQTWriterLegacy.write_string(
+        mol_setups[0]
+    )
+
+    with open(
+        output_file,
+        "w"
+    ) as f:
+
+        f.write(
+            pdbqt_string
+        )
 
 
 # ==========================================================
-# MAIN
+# START
 # ==========================================================
 
-print("\n========================================")
-print(" Ligand Preparation Module")
-print("========================================\n")
+print("\n====================================")
+print(" Ligand Preparation")
+print("====================================\n")
 
 config = load_project()
 
-project_name = config["project_name"]
+project_dir = Path(
+    config["project_path"]
+)
 
-project_dir = Path(project_name)
-
-ligands_dir = project_dir / "ligands_docking"
+ligands_dir = (
+    project_dir /
+    "ligands_docking"
+)
 
 csv_file = input(
     "Enter ligand CSV file path: "
 ).strip()
 
-csv_file = Path(csv_file)
+csv_file = Path(
+    csv_file
+)
 
 if not csv_file.exists():
 
     raise FileNotFoundError(
-        f"File not found:\n{csv_file}"
+        f"{csv_file} not found."
     )
 
-df = pd.read_csv(csv_file)
+# ==========================================================
+# LOAD CSV
+# ==========================================================
+
+df = pd.read_csv(
+    csv_file
+)
 
 required_columns = [
+
     "id_ligand",
     "smiles"
+
 ]
 
 for col in required_columns:
@@ -140,16 +165,20 @@ for col in required_columns:
     if col not in df.columns:
 
         raise ValueError(
-            f"Missing column: {col}"
+            f"Missing required column: {col}"
         )
+
+# ==========================================================
+# PROCESS LIGANDS
+# ==========================================================
 
 metadata = []
 
-success_count = 0
-failure_count = 0
+success = 0
+failed = 0
 
 print(
-    f"\nProcessing {len(df)} ligands...\n"
+    f"\nPreparing {len(df)} ligands...\n"
 )
 
 for _, row in tqdm(
@@ -167,86 +196,95 @@ for _, row in tqdm(
 
     try:
 
-        mol = create_3d_structure(
+        mol = smiles_to_mol(
             smiles
         )
 
         if mol is None:
 
-            failure_count += 1
+            failed += 1
 
             metadata.append({
 
-                "id_ligand": ligand_id,
-                "smiles": smiles,
-                "pdbqt_file": None,
-                "status": "FAILED"
+                "id_ligand":
+                    ligand_id,
+
+                "smiles":
+                    smiles,
+
+                "pdbqt_file":
+                    None,
+
+                "status":
+                    "FAILED"
 
             })
 
             continue
 
-        sdf_file = ligands_dir / f"{ligand_id}.sdf"
-
-        writer = Chem.SDWriter(
-            str(sdf_file)
+        pdbqt_file = (
+            ligands_dir /
+            f"{ligand_id}.pdbqt"
         )
 
-        writer.write(mol)
-        writer.close()
-
-        pdbqt_file = ligands_dir / f"{ligand_id}.pdbqt"
-
-        success = sdf_to_pdbqt(
-            sdf_file,
+        mol_to_pdbqt(
+            mol,
             pdbqt_file
         )
 
-        sdf_file.unlink(
-            missing_ok=True
-        )
-
-        if success:
-
-            metadata.append({
-
-                "id_ligand": ligand_id,
-                "smiles": smiles,
-                "pdbqt_file": pdbqt_file.name,
-                "status": "SUCCESS"
-
-            })
-
-            success_count += 1
-
-        else:
-
-            metadata.append({
-
-                "id_ligand": ligand_id,
-                "smiles": smiles,
-                "pdbqt_file": None,
-                "status": "FAILED"
-
-            })
-
-            failure_count += 1
-
-    except Exception:
-
         metadata.append({
 
-            "id_ligand": ligand_id,
-            "smiles": smiles,
-            "pdbqt_file": None,
-            "status": "FAILED"
+            "id_ligand":
+                ligand_id,
+
+            "smiles":
+                smiles,
+
+            "pdbqt_file":
+                pdbqt_file.name,
+
+            "status":
+                "SUCCESS"
 
         })
 
-        failure_count += 1
+        success += 1
 
+    except Exception as e:
 
-metadata_df = pd.DataFrame(metadata)
+        failed += 1
+
+        print(
+            f"\nERROR: {ligand_id}"
+        )
+
+        print(
+            str(e)
+        )
+
+        metadata.append({
+
+            "id_ligand":
+                ligand_id,
+
+            "smiles":
+                smiles,
+
+            "pdbqt_file":
+                None,
+
+            "status":
+                "FAILED"
+
+        })
+
+# ==========================================================
+# SAVE METADATA
+# ==========================================================
+
+metadata_df = pd.DataFrame(
+    metadata
+)
 
 metadata_file = (
     project_dir /
@@ -254,21 +292,35 @@ metadata_file = (
 )
 
 metadata_df.to_csv(
+
     metadata_file,
+
     index=False
+
 )
 
-print("\n========================================")
-print(" Ligand Preparation Finished")
-print("========================================")
+# ==========================================================
+# SUMMARY
+# ==========================================================
 
-print(f"\nSuccessful ligands : {success_count}")
-print(f"Failed ligands     : {failure_count}")
+print("\n====================================")
+print(" Ligand Preparation Completed")
+print("====================================")
+
+print(
+    f"\nSuccessful ligands: {success}"
+)
+
+print(
+    f"Failed ligands: {failed}"
+)
 
 print(
     f"\nPDBQT files saved in:\n{ligands_dir}"
 )
 
 print(
-    f"\nMetadata saved in:\n{metadata_file}"
+    f"\nMetadata file:\n{metadata_file}"
 )
+
+print("\nDone.\n")
