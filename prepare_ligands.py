@@ -89,27 +89,33 @@ def smiles_to_mol(smiles):
 
     return mol
 
-
 def mol_to_pdbqt(mol, output_file):
 
     preparator = MoleculePreparation()
 
-    mol_setups = preparator.prepare(
-        mol
-    )
+    mol_setups = preparator.prepare(mol)
 
-    pdbqt_string = PDBQTWriterLegacy.write_string(
+    result = PDBQTWriterLegacy.write_string(
         mol_setups[0]
     )
 
+    # Meeko 0.8 devuelve una tupla
+    if isinstance(result, tuple):
+
+        pdbqt_string = result[0]
+
+    else:
+
+        pdbqt_string = result
+
     with open(
         output_file,
-        "w"
+        "w",
+        encoding="utf-8"
     ) as f:
 
-        f.write(
-            pdbqt_string
-        )
+        f.write(pdbqt_string)
+
 
 
 # ==========================================================

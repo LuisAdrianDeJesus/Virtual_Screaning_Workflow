@@ -1,0 +1,12 @@
+DOCKING STATISTICS
+==================================================
+
+Total ligands: 5
+Successful dockings: 5
+Failed dockings: 0
+
+Best affinity: -7.42 kcal/mol
+Worst affinity: -4.54 kcal/mol
+Mean affinity: -6.02 kcal/mol
+Median affinity: -5.73 kcal/mol
+Standard deviation: 1.13 kcal/mol

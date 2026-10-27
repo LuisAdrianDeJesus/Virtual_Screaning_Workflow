@@ -33,13 +33,17 @@ from tqdm import tqdm
 
 def load_project():
 
-    config_file = Path("project_config.json")
+    project_dirs = list(
+        Path(".").glob("*/project_config.json")
+    )
 
-    if not config_file.exists():
+    if len(project_dirs) == 0:
 
         raise FileNotFoundError(
-            "project_config.json not found."
+            "project_config.json not found.\nRun setup.py first."
         )
+
+    config_file = project_dirs[0]
 
     with open(config_file) as f:
 

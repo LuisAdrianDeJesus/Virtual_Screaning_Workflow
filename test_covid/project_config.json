@@ -1,0 +1,12 @@
+{
+    "project_name": "test_covid",
+    "project_path": "C:\\Users\\Diego\\Documents\\test\\test_covid",
+    "directories": {
+        "ligands": "ligands_docking",
+        "receptor": "receptor_docking",
+        "poses": "docking_poses",
+        "logs": "docking_log",
+        "results": "results",
+        "test": "test"
+    }
+}

@@ -1,143 +1,166 @@
 # AutoDock Vina Virtual Screening Pipeline
 
-A Python-based pipeline for ligand preparation, receptor preparation, virtual screening, and result analysis using AutoDock Vina.
+A Python-based, fully automated pipeline for ligand preparation, receptor preparation, virtual screening, and result analysis using AutoDock Vina.
 
-This workflow allows users to move from a ligand CSV file containing SMILES structures to ranked docking results with minimal manual intervention.
-
----
-
-# Features
-
-- Automatic project setup
-- Ligand preparation from SMILES
-- 3D conformer generation using RDKit
-- Ligand conversion to PDBQT using Meeko
-- Receptor preparation from:
-  - Local PDB files
-  - RCSB PDB IDs
-- AutoDock Vina virtual screening
-- Real-time docking progress monitoring
-- Automatic log generation
-- Ranked docking results
-- Top 100 hit extraction
-- Affinity distribution plots
-- Statistical summary reports
+This workflow seamlessly takes you from a raw SMILES CSV file to fully processed, ranked docking results, automated environment provisioning via Conda, and structured outputs with minimal manual intervention.
 
 ---
 
-# Requirements
+## Features
 
-## Python
+- **Automated Master Orchestration**: Run the entire pipeline sequentially using `main.py` or run individual modular scripts step-by-step.
+- **Dynamic Environment Management**: Automatically creates or updates the Conda environment (`vina_pipeline`) without throwing prefix conflicts.
+- **Dynamic Project Path Lookup**: Flexible project configuration resolution (`glob("*/project_config.json")`) allowing execution across any working directory without path errors.
+- **Ligand Preparation**: 3D conformer generation using RDKit and legacy PDBQT conversion using Meeko.
+- **Receptor Preparation & Open Babel CLI Integration**:
+  - Automatically fetches structures from RCSB PDB or processes local PDB files.
+  - Cleans structures to retain protein atoms (`ATOM`, `TER`, `END`).
+  - Adds polar hydrogens (`-h`) and calculates Gasteiger charges via Open Babel CLI.
+  - **Tag Sanitization**: Automatically strips non-rigid tags (`ROOT`, `ENDROOT`, `BRANCH`, `ENDBRANCH`, `TORSDOF`) to enforce rigidity requirements for AutoDock Vina receptors.
+- **Virtual Screening with AutoDock Vina**:
+  - Live progress monitoring using `tqdm`.
+  - Real-time log file capture per ligand.
+  - Temporary progress tracking (`screening_progress.csv`).
+- **Result Analysis & Reporting**:
+  - Complete ranking by binding affinity energy (`screening_results.csv`).
+  - Automated extraction of Top 100 hit structures to `top100_structures/`.
+  - High-resolution affinity distribution histogram (`affinity_histogram.png`).
+  - Comprehensive statistical summary report (`docking_statistics.txt`).
 
-Python 3.10+
+---
 
-## AutoDock Vina
+## Requirements
 
-Install AutoDock Vina and ensure that the executable is available in your system PATH.
+### System Requirements
+- Python 3.10+
+- Conda / Miniconda / Anaconda
+- Open Babel (CLI binary `obabel` available in PATH or Conda)
+- AutoDock Vina executable (`vina` or `vina.exe` available in PATH or local execution directory)
 
-Test your installation:
-
-```bash
-vina --version
-```
-
-## Python Packages
-
-Required packages:
-
+### Core Dependencies
 ```text
-pandas
-numpy
+openbabel
 rdkit
 meeko
+vina
+pandas
+numpy
 requests
 biopython
 matplotlib
 tqdm
 ```
 
-The setup script installs missing dependencies automatically.
+---
+
+## Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/your_username/AutoDock-Vina-Virtual-Screening-Pipeline.git
+   cd AutoDock-Vina-Virtual-Screening-Pipeline
+   ```
+
+2. **Perform Initial Setup**:
+   ```bash
+   python setup_2.py
+   ```
+   *Or simply run `python main.py` to handle setup, Conda environment creation/update, and pipeline execution automatically.*
 
 ---
 
-# Installation
+## Workflow & Execution
 
-Clone the repository:
+The complete pipeline can be executed in two ways:
 
-```bash
-git clone https://github.com/your_username/AutoDock-Vina-Virtual-Screening-Pipeline.git
+### Option A: Master Automated Execution (Recommended)
 
-cd AutoDock-Vina-Virtual-Screening-Pipeline
-```
-
-Run setup:
+Run the master orchestrator to handle environment checks, project initialization, ligand/receptor preparation, virtual screening, and post-processing sequentially:
 
 ```bash
-python setup.py
+python main.py
 ```
 
----
-
-# Workflow
-
-The complete workflow consists of four steps:
+### Option B: Step-by-Step Manual Execution
 
 ```text
-setup.py
-      ↓
+setup_2.py
+   ↓
 prepare_ligands.py
-      ↓
+   ↓
 prepare_receptor.py
-      ↓
-docking_screening.py
-      ↓
-docking_output.py
+   ↓
+docking_screaning.py
+   ↓
+docking_out.py
 ```
+
+1. **Project Setup**:
+   ```bash
+   python setup_2.py
+   ```
+   Creates project directory structure, `environment.yml`, `project_config.json`, and `dependencies_report.txt`.
+
+2. **Environment Creation / Activation**:
+   ```bash
+   conda env create -f environment.yml
+   conda activate vina_pipeline
+   ```
+   *(If the environment already exists: `conda env update -n vina_pipeline -f environment.yml --prune`).*
+
+3. **Prepare Ligands**:
+   ```bash
+   python prepare_ligands.py
+   ```
+   Provide a CSV file containing `id_ligand` and `smiles` columns.
+
+4. **Prepare Receptor**:
+   ```bash
+   python prepare_receptor.py
+   ```
+   Select local PDB or download via RCSB PDB ID (e.g., `7TLY`), and specify grid box parameters.
+
+5. **Run Virtual Screening**:
+   ```bash
+   python docking_screaning.py
+   ```
+
+6. **Analyze Results**:
+   ```bash
+   python docking_out.py
+   ```
 
 ---
 
-# 1. Project Setup
+## 1. Project Setup (`setup_2.py`)
 
-Run:
+Generates project folder hierarchy, configuration metadata, and environment specification.
 
-```bash
-python setup.py
-```
-
-Example:
-
+**Example Input**:
 ```text
-Enter project name:
-
-EGFR_screening
+Enter project name: EGFR_screening
 ```
 
-Output:
-
+**Output Hierarchy**:
 ```text
 EGFR_screening/
-
 ├── ligands_docking/
 ├── receptor_docking/
 ├── docking_poses/
 ├── docking_log/
-└── results/
+├── results/
+├── test/
+├── environment.yml
+└── project_config.json
 ```
 
 ---
 
-# 2. Ligand Preparation
+## 2. Ligand Preparation (`prepare_ligands.py`)
 
-Prepare ligands from a CSV file.
+Converts SMILES strings into 3D low-energy conformers and generates PDBQT ligand files.
 
-Run:
-
-```bash
-python prepare_ligands.py
-```
-
-Input CSV format:
-
+**Input CSV format**:
 ```csv
 id_ligand,smiles
 LIG001,CCO
@@ -145,74 +168,30 @@ LIG002,CCN
 LIG003,c1ccccc1
 ```
 
-Output:
-
+**Output**:
 ```text
-ligands_docking/
-
+EGFR_screening/ligands_docking/
 ├── LIG001.pdbqt
 ├── LIG002.pdbqt
 └── LIG003.pdbqt
-```
 
-Metadata file:
-
-```text
-ligands_metadata.csv
+EGFR_screening/ligands_metadata.csv
 ```
 
 ---
 
-# 3. Receptor Preparation
+## 3. Receptor Preparation (`prepare_receptor.py`)
 
-Run:
+Processes receptors using Open Babel CLI (`obabel`):
+1. Filters protein records (`ATOM`, `TER`, `END`).
+2. Adds polar hydrogens (`-h`) and calculates Gasteiger partial charges.
+3. Sanitizes forbidden tags (`ROOT`, `ENDROOT`, `BRANCH`, `ENDBRANCH`, `TORSDOF`) to ensure compatibility with AutoDock Vina.
 
-```bash
-python prepare_receptor.py
-```
-
-Input options:
-
-### Option 1
-
-Use a local PDB file
-
+**Output**:
 ```text
-protein.pdb
-```
-
-### Option 2
-
-Download structure directly from RCSB
-
-Example:
-
-```text
-6LU7
-```
-
-Docking parameters:
-
-```text
-center_x
-center_y
-center_z
-
-size_x
-size_y
-size_z
-
-exhaustiveness
-num_modes
-energy_range
-```
-
-Output:
-
-```text
-receptor_docking/
-
+EGFR_screening/receptor_docking/
 ├── receptor_original.pdb
+├── receptor_cleaned.pdb
 ├── receptor.pdbqt
 ├── conf.txt
 └── receptor_info.json
@@ -220,160 +199,132 @@ receptor_docking/
 
 ---
 
-# 4. Virtual Screening
+## 4. Virtual Screening (`docking_screaning.py`)
 
-Run:
+Automatically detects prepared ligands, receptor PDBQT, and `conf.txt` settings to execute Vina docking with real-time log tracking.
 
-```bash
-python docking_screening.py
-```
-
-The script automatically detects:
-
+**Output**:
 ```text
-receptor_docking/receptor.pdbqt
-receptor_docking/conf.txt
-ligands_docking/*.pdbqt
+EGFR_screening/docking_poses/*.pdbqt
+EGFR_screening/docking_log/*.log
+EGFR_screening/results/screening_summary.csv
 ```
-
-Output:
-
-```text
-docki*g_poses/
-docking_log/
-```
-
-For eac* ligand:
-
-```text
-ligand_out.pdbqt*ligand.log
-```
-
-The Vina output is*shown in the terminal and saved to*the corresponding log file.
 
 ---
 
-* 5. Result Analysis
+## 5. Result Analysis (`docking_out.py`)
 
-Run:
+Extracts binding affinities, ranks compounds, copies top pose structures, plots distribution charts, and exports summary statistics.
 
-```bash*python docking_output.py
-```
-
-Gene*ated files:
-
+**Generated Files**:
 ```text
-results/
-
-├──*screening_results.csv
-├── top100_h*ts.csv
+EGFR_screening/results/
+├── screening_results.csv
+├── top100_hits.csv
 ├── docking_statistics.txt
-*── affinity_histogram.png
-└── top1*0_structures/
+├── affinity_histogram.png
+└── top100_structures/
 ```
+
+### Output Descriptions
+
+- **`screening_results.csv`**: Full dataset ranked by binding affinity (`kcal/mol`).
+- **`top100_hits.csv`**: Best 100 binding compounds.
+- **`top100_structures/`**: Copied PDBQT pose files for the top 100 compounds.
+- **`affinity_histogram.png`**: High-res distribution histogram of binding affinities.
+- **`docking_statistics.txt`**: Summary report covering total, successful, failed dockings, best/worst affinity, mean, median, and standard deviation.
 
 ---
 
-# Output F*les
+## Validation Case Study: `test_covid`
 
-## screening_results.csv
+A complete test dataset and validation benchmark were conducted in the `test_covid` directory:
 
-Con*ains all ligands ranked by binding*affinity.
-
-Example:
-
-```csv
-Rank,i*_ligand,smiles,Affinity_energy
-1,L*G017,CCN,-11.2
-2,LIG165,CCC,-10.9
-*,LIG054,COC,-10.7
-```
-
-## top100_h*ts.csv
-
-Contains the 100 highest-r*nked compounds.
-
-## top100_structu*es/
-
-Contains the docking poses co*responding to the best 100 compoun*s.
-
-## affinity_histogram.png
-
-Dis*ribution of docking scores.
-
-## do*king_statistics.txt
-
-Summary stati*tics:
-
-- Total ligands
-- Successfu* dockings
-- Failed dockings
-- Best*affinity
-- Worst affinity
-- Mean a*finity
-- Median affinity
-- Standar* deviation
+- **Target Receptor**: SARS-CoV-2 Main Protease / Mpro (**PDB ID: 7TLY**).
+- **Ligand Dataset**: 5 FDA-approved antiviral drugs in SMILES format.
+- **Benchmark Results**:
+  - `prepare_receptor.py` successfully downloaded `7TLY.pdb`, cleaned HETATM/water molecules, applied Gasteiger charges, and sanitized rigid receptor tags via `obabel`.
+  - `prepare_ligands.py` processed 5/5 SMILES into 3D low-energy conformers and generated PDBQT structures via Meeko.
+  - `docking_screaning.py` performed docking across all 5 ligands without parsing errors.
+  - `docking_out.py` generated affinity rankings, histogram distribution, and statistical metrics inside `test_covid/results/`.
 
 ---
 
-# Recommended Dir*ctory Structure
+## Troubleshooting & Common Solutions
+
+### 1. `PDBQT parsing error: Unknown or inappropriate tag found in rigid receptor. > ROOT`
+- **Cause**: Open Babel adds `ROOT` and `ENDROOT` tags during PDB to PDBQT conversion, which AutoDock Vina rejects in rigid receptors.
+- **Solution**: `prepare_receptor.py` automatically strips non-rigid tags (`ROOT`, `ENDROOT`, `BRANCH`, `ENDBRANCH`, `TORSDOF`) from `receptor.pdbqt`.
+
+### 2. `FileNotFoundError: project_config.json not found`
+- **Cause**: Static path resolution looking only in the working root directory.
+- **Solution**: Dynamic lookup `list(Path(".").glob("*/project_config.json"))` was implemented across all scripts (`prepare_ligands.py`, `prepare_receptor.py`, `docking_screaning.py`, `docking_out.py`).
+
+### 3. `CondaValueError: prefix already exists`
+- **Cause**: Attempting to recreate an existing Conda environment.
+- **Solution**: `main.py` checks environment status (`check_env_exists()`) and runs `conda env update` if `vina_pipeline` already exists.
+
+### 4. `TypeError` in `setup_2.py`
+- **Cause**: Passing concatenated path instead of distinct arguments to `write_project_config`.
+- **Solution**: Updated call signature to `write_project_config(project_path, project_name)`.
+
+---
+
+## Directory Structure
 
 ```text
-project/
-*├── ligands_docking/
-├── receptor_*ocking/
-├── docking_poses/
-├── doc*ing_log/
-├── results/
-
-├── ligands*metadata.csv
-├── project_config.js*n
-└── dependencies_report.txt
+project_root/
+├── main.py
+├── setup_2.py
+├── prepare_ligands.py
+├── prepare_receptor.py
+├── docking_screaning.py
+├── docking_out.py
+├── test_covid/
+│   ├── ligands_docking/
+│   ├── receptor_docking/
+│   │   ├── receptor_original.pdb
+│   │   ├── receptor_cleaned.pdb
+│   │   ├── receptor.pdbqt
+│   │   ├── conf.txt
+│   │   └── receptor_info.json
+│   ├── docking_poses/
+│   ├── docking_log/
+│   ├── results/
+│   │   ├── screening_results.csv
+│   │   ├── top100_hits.csv
+│   │   ├── docking_statistics.txt
+│   │   ├── affinity_histogram.png
+│   │   └── top100_structures/
+│   ├── ligands_metadata.csv
+│   ├── project_config.json
+│   └── dependencies_report.txt
+└── README.md
 ```
-*---
-
-# Test Dataset
-
-A small test *ataset is recommended before runni*g large-scale virtual screening ca*paigns.
-
-Example:
-
-```csv
-id_ligan*,smiles
-ASPIRIN,CC(=O)OC1=CC=CC=C1*(=O)O
-CAFFEINE,CN1C=*C2=C1C*=O)N(C(=O)N*C)C
-IBUPROFEN*CC(C)CC1=CC=C*C=C1)C(C)*(=O)O
-```
 
 ---
 
-# Future Improveme*ts
+## Future Improvements
 
-Planned features:
-
-- Automatic*binding-site detection
-- Multi-cor* parallel*docking
-- Consensus scoring
-- ADME* filtering
-- Molecular descriptor *alculation
-- Clustering of top*hits
-- Docking report generation (*DF/HTML)
-- Support for AutoDock-G*U
+- Automatic binding-site detection.
+- Multi-core parallel docking.
+- Consensus scoring and ADME filtering.
+- Molecular descriptor calculation and hit clustering.
+- Automated docking report generation (PDF/HTML).
 
 ---
 
-# Citation
+## Citation
 
-If you use thi* workflow in your research, please*cite:
-
-- AutoDock Vina
-- RDKit
-- M*eko
-- Biopy*hon
+If you use this pipeline in your research, please cite:
+- **AutoDock Vina**: Trott, O., & Olson, A. J. (2010). AutoDock Vina: improving the speed and accuracy of docking.
+- **Open Babel**: O'Boyle, N. M., et al. (2011). Open Babel: An open chemical toolbox.
+- **RDKit**: Open-source cheminformatics toolkit.
+- **Meeko**: Preparation of small molecules for AutoDock.
+- **Biopython**: Cock, P. J., et al. (2009). Biopython: freely available Python tools for computational molecular biology.
 
 ---
 
-# License
+## License
 
 MIT License
-`*``*

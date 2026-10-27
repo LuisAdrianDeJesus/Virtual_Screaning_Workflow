@@ -1,0 +1,13 @@
+{
+    "original_pdb": "receptor_original.pdb",
+    "receptor_pdbqt": "receptor.pdbqt",
+    "center_x": "223",
+    "center_y": "198",
+    "center_z": "256",
+    "size_x": "50",
+    "size_y": "50",
+    "size_z": "50",
+    "exhaustiveness": "8",
+    "num_modes": "9",
+    "energy_range": "3"
+}

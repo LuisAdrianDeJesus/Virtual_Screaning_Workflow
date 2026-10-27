@@ -1,0 +1,17 @@
+name: vina_pipeline
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.11
+  - rdkit
+  - meeko
+  - vina
+  - openbabel
+  - pandas
+  - numpy
+  - requests
+  - biopython
+  - matplotlib
+  - tqdm

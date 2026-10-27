@@ -21,6 +21,7 @@ Output:
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import requests
@@ -143,25 +144,16 @@ def save_conf_file(
         )
 
 
-def detect_receptor_tool():
-
-    import shutil
-
-    if shutil.which(
-        "mk_prepare_receptor"
-    ):
-
-        return "mk_prepare_receptor"
-
-    if shutil.which(
-        "mk_prepare_receptor.py"
-    ):
-
-        return "mk_prepare_receptor.py"
-
-    raise RuntimeError(
-        "Meeko receptor preparation tool not found."
-    )
+def get_preparation_command(original_pdb, receptor_pdbqt):
+    """
+    Detects available meeko preparation command or uses python module fallback.
+    """
+    for tool in ["mk_prepare_receptor", "mk_prepare_receptor.py"]:
+        if shutil.which(tool):
+            return [tool, "-i", str(original_pdb), "-o", str(receptor_pdbqt)]
+    
+    # Fallback to python module execution if executable is not in PATH
+    return [sys.executable, "-m", "meeko.cli.mk_prepare_receptor", "-i", str(original_pdb), "-o", str(receptor_pdbqt)]
 
 
 # ==========================================================
@@ -335,17 +327,12 @@ save_conf_file(
     energy_range
 
 )
-
 # ==========================================================
-# PREPARE RECEPTOR
+# PREPARE RECEPTOR (Flujo Profesional con Open Babel CLI + Clean)
 # ==========================================================
 
 print(
-    "\nPreparing receptor..."
-)
-
-preparation_tool = (
-    detect_receptor_tool()
+    "\nPreparing receptor with Open Babel CLI (Polar hydrogens, cleaning, Gasteiger charges)..."
 )
 
 receptor_pdbqt = (
@@ -353,38 +340,75 @@ receptor_pdbqt = (
     "receptor.pdbqt"
 )
 
+cleaned_pdb = receptor_dir / "receptor_cleaned.pdb"
+
+preparation_code = f"""
+import sys
+import os
+import subprocess
+
+input_pdb_path = r"{original_pdb.resolve().as_posix()}"
+cleaned_pdb_path = r"{cleaned_pdb.resolve().as_posix()}"
+output_pdbqt_path = r"{receptor_pdbqt.resolve().as_posix()}"
+
+# 1. Limpiar el PDB original: conservar únicamente los átomos proteicos (ATOM) y descartar HETATM
+lines_out = []
+with open(input_pdb_path, 'r', encoding='utf-8', errors='ignore') as fin:
+    for line in fin:
+        if line.startswith("ATOM") or line.startswith("TER") or line.startswith("END"):
+            lines_out.append(line)
+
+with open(cleaned_pdb_path, 'w', encoding='utf-8') as fout:
+    fout.writelines(lines_out)
+
+# 2. Ejecutar Open Babel por línea de comandos
+try:
+    cmd = [
+        "obabel",
+        cleaned_pdb_path,
+        "-O",
+        output_pdbqt_path,
+        "-h",
+        "-xr",
+        "--partialcharge",
+        "gasteiger"
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"Error en obabel: {{result.stderr}}")
+        
+    # 3. Eliminar etiquetas no compatibles con receptores rígidos en AutoDock Vina (ROOT, ENDROOT, BRANCH, ENDBRANCH)
+    with open(output_pdbqt_path, 'r', encoding='utf-8') as f_in:
+        pdbqt_lines = f_in.readlines()
+        
+    forbidden_tags = ("ROOT", "ENDROOT", "BRANCH", "ENDBRANCH", "TORSDOF")
+    clean_pdbqt = [line for line in pdbqt_lines if not line.startswith(forbidden_tags)]
+    
+    with open(output_pdbqt_path, 'w', encoding='utf-8') as f_out:
+        f_out.writelines(clean_pdbqt)
+
+    print("Receptor procesado y limpiado exitosamente para AutoDock Vina.")
+except Exception as e:
+    print(f"Error durante la preparación: {{e}}", file=sys.stderr)
+    sys.exit(1)
+"""
+
 command = [
-
-    preparation_tool,
-
-    "-i",
-    str(original_pdb),
-
-    "-o",
-    str(receptor_pdbqt)
-
+    sys.executable,
+    "-c",
+    preparation_code
 ]
 
 result = subprocess.run(
-
     command,
-
     capture_output=True,
-
     text=True
-
 )
 
 if result.returncode != 0:
-
-    print(
-        result.stderr
-    )
-
-    raise RuntimeError(
-        "Receptor preparation failed."
-    )
-
+    print(result.stderr)
+    raise RuntimeError("Receptor preparation failed.")
 # ==========================================================
 # SAVE INFO
 # ==========================================================
