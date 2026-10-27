@@ -84,7 +84,7 @@ python main.py
 ### Option B: Step-by-Step Manual Execution
 
 ```text
-setup_2.py
+setup.py
    ↓
 prepare_ligands.py
    ↓
@@ -97,7 +97,7 @@ docking_out.py
 
 1. **Project Setup**:
    ```bash
-   python setup_2.py
+   python setup.py
    ```
    Creates project directory structure, `environment.yml`, `project_config.json`, and `dependencies_report.txt`.
 
@@ -132,7 +132,7 @@ docking_out.py
 
 ---
 
-## 1. Project Setup (`setup_2.py`)
+## 1. Project Setup (`setup.py`)
 
 Generates project folder hierarchy, configuration metadata, and environment specification.
 
@@ -275,7 +275,7 @@ A complete test dataset and validation benchmark were conducted in the `test_cov
 ```text
 project_root/
 ├── main.py
-├── setup_2.py
+├── setup.py
 ├── prepare_ligands.py
 ├── prepare_receptor.py
 ├── docking_screaning.py
@@ -327,4 +327,4 @@ If you use this pipeline in your research, please cite:
 
 ## License
 
-MIT License
+Apache-2.0 License
