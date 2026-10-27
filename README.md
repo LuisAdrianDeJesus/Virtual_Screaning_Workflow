@@ -63,7 +63,7 @@ tqdm
 
 2. **Perform Initial Setup**:
    ```bash
-   python setup_2.py
+   python setup.py
    ```
    *Or simply run `python main.py` to handle setup, Conda environment creation/update, and pipeline execution automatically.*
 
@@ -264,7 +264,7 @@ A complete test dataset and validation benchmark were conducted in the `test_cov
 - **Cause**: Attempting to recreate an existing Conda environment.
 - **Solution**: `main.py` checks environment status (`check_env_exists()`) and runs `conda env update` if `vina_pipeline` already exists.
 
-### 4. `TypeError` in `setup_2.py`
+### 4. `TypeError` in `setup.py`
 - **Cause**: Passing concatenated path instead of distinct arguments to `write_project_config`.
 - **Solution**: Updated call signature to `write_project_config(project_path, project_name)`.
 
