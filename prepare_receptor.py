@@ -24,28 +24,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from project_utils import load_project_from_cli
+
 import requests
 
 # ==========================================================
 # FUNCTIONS
 # ==========================================================
-
-def load_project():
-
-    project_dirs = list(
-        Path(".").glob("*/project_config.json")
-    )
-
-    if len(project_dirs) == 0:
-
-        raise FileNotFoundError(
-            "project_config.json not found."
-        )
-
-    with open(project_dirs[0]) as f:
-
-        return json.load(f)
-
 
 def download_pdb(
     pdb_id,
@@ -164,7 +149,7 @@ print("\n====================================")
 print(" Receptor Preparation")
 print("====================================\n")
 
-config = load_project()
+config = load_project_from_cli("prepare_receptor.py")
 
 project_dir = Path(
     config["project_path"]

@@ -27,30 +27,14 @@ import re
 import shutil
 from pathlib import Path
 
+from project_utils import load_project_from_cli
+
 import pandas as pd
 import matplotlib.pyplot as plt
 
 # ==========================================================
 # FUNCTIONS
 # ==========================================================
-
-def load_project():
-
-    project_dirs = list(
-        Path(".").glob("*/project_config.json")
-    )
-
-    if len(project_dirs) == 0:
-
-        raise FileNotFoundError(
-            "project_config.json not found.\nRun setup.py first."
-        )
-
-    config_file = project_dirs[0]
-
-    with open(config_file) as f:
-
-        return json.load(f)
 
 def extract_affinity(log_file):
     """
@@ -95,11 +79,11 @@ print("\n====================================")
 print(" Docking Results Analysis")
 print("====================================\n")
 
-config = load_project()
+config = load_project_from_cli("docking_out.py")
 
 project_name = config["project_name"]
 
-project_dir = Path(project_name)
+project_dir = Path(config["project_path"])
 
 logs_dir = (
     project_dir /

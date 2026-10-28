@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
-import os
+import argparse
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from project_utils import load_project
 
 
 def run_step(title, command, shell=False):
@@ -36,17 +38,26 @@ def check_env_exists(env_name):
 
 
 def main():
-    # 1. Ejecutar el setup inicial
-    run_step("Executing Setup", [sys.executable, "setup.py"])
+    parser = argparse.ArgumentParser(description="Run the virtual screening workflow")
+    parser.add_argument("--project", help="Project directory (created if missing)")
+    args = parser.parse_args()
+    project_value = args.project if args.project is not None else input(
+        "Enter project directory: "
+    ).strip()
+    if not project_value.strip():
+        parser.error("Project directory must not be empty.")
+    project_dir = Path(project_value).expanduser().resolve()
+    script_dir = Path(__file__).resolve().parent
 
-    # 2. Localizar el archivo environment.yml generado
-    env_files = list(Path(".").glob("*/environment.yml"))
-
-    if not env_files:
-        print("\nERROR: environment.yml not found. Setup may have failed.")
-        sys.exit(1)
-
-    env_file = env_files[0]
+    if not (project_dir / "project_config.json").is_file():
+        run_step("Executing Setup", [
+            sys.executable, str(script_dir / "setup.py"), "--project", str(project_dir)
+        ])
+    config = load_project(project_dir)
+    project_dir = Path(config["project_path"])
+    env_file = project_dir / "environment.yml"
+    if not env_file.is_file():
+        parser.error(f"Environment file not found: {env_file}")
 
     # 3. Validar presencia de Conda
     if shutil.which("conda") is None:
@@ -81,7 +92,9 @@ def main():
             env_name,
             "--no-capture-output",
             "python",
-            script,
+            str(script_dir / script),
+            "--project",
+            str(project_dir),
         ]
         run_step(f"Executing {script} (in Conda env: {env_name})", cmd)
 

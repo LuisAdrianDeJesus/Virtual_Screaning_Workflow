@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import shutil
-import sys
 from pathlib import Path
 
 # ==================================================
@@ -79,9 +79,7 @@ def write_project_config(
 
         "project_path":
 
-            str(
-                project_path.resolve()
-            ),
+            ".",
 
         "directories": {
 
@@ -150,72 +148,26 @@ def write_report(project_path):
 # MAIN
 # ==================================================
 
-print("\n===================================")
-print(" Virtual Screening Pipeline Setup")
-print("===================================\n")
+def main():
+    parser = argparse.ArgumentParser(description="Create a portable workflow project")
+    parser.add_argument("--project", help="Directory for the new project")
+    args = parser.parse_args()
+    value = args.project if args.project is not None else input("Enter project name: ").strip()
+    if not value.strip():
+        parser.error("Project name must not be empty.")
+    project_path = Path(value).expanduser().resolve()
+    if (project_path / "project_config.json").exists():
+        parser.error("Project already exists. Reuse it with main.py --project PATH.")
+    create_project_folders(project_path)
+    write_environment_file(project_path)
+    write_project_config(project_path, project_path.name)
+    write_report(project_path)
+    print(f"Project created: {project_path}")
+    print(f'conda env create -f "{project_path / "environment.yml"}"')
+    print("conda activate vina_pipeline")
+    print(f'python prepare_ligands.py --project "{project_path}"')
+    print(f'python prepare_receptor.py --project "{project_path}"')
 
-project_name = input(
-    "Enter project name: "
-).strip()
 
-if project_name == "":
-
-    print(
-        "\nERROR: Invalid project name."
-    )
-
-    sys.exit(1)
-
-project_path = Path(
-    project_name
-)
-
-create_project_folders(
-    project_path
-)
-
-write_environment_file(
-    project_path
-)
-
-write_project_config(
-    project_path,
-    project_name
-)
-
-write_report(
-    project_path
-)
-
-print("\n===================================")
-print(" Setup Completed")
-print("===================================")
-
-print(
-    f"\nProject:\n"
-    f"{project_path.resolve()}"
-)
-
-print(
-    "\nNext step:"
-)
-
-print(
-    "\nconda env create -f environment.yml"
-)
-
-print(
-    "\nconda activate vina_pipeline"
-)
-
-print(
-    "\npython prepare_ligands.py"
-)
-
-print(
-    "\npython prepare_receptor.py"
-)
-
-print(
-    "\nDone.\n"
-)
+if __name__ == "__main__":
+    main()

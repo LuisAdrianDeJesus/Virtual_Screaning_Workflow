@@ -9,8 +9,8 @@ This workflow seamlessly takes you from a raw SMILES CSV file to fully processed
 ## Features
 
 - **Automated Master Orchestration**: Run the entire pipeline sequentially using `main.py` or run individual modular scripts step-by-step.
-- **Dynamic Environment Management**: Automatically creates or updates the Conda environment (`vina_pipeline`) without throwing prefix conflicts.
-- **Dynamic Project Path Lookup**: Flexible project configuration resolution (`glob("*/project_config.json")`) allowing execution across any working directory without path errors.
+- **Environment Management**: Creates the Conda environment (`vina_pipeline`) if absent and reuses it if present. Existing environments are not automatically updated.
+- **Explicit Project Selection**: Pass `--project PATH` to select a project. Paths are resolved from the location of its config; ambiguous automatic discovery is rejected.
 - **Ligand Preparation**: 3D conformer generation using RDKit and legacy PDBQT conversion using Meeko.
 - **Receptor Preparation & Open Babel CLI Integration**:
   - Automatically fetches structures from RCSB PDB or processes local PDB files.
@@ -57,15 +57,15 @@ tqdm
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your_username/AutoDock-Vina-Virtual-Screening-Pipeline.git
-   cd AutoDock-Vina-Virtual-Screening-Pipeline
+   git clone https://github.com/LuisAdrianDeJesus/Virtual_Screaning_Workflow.git
+   cd Virtual_Screaning_Workflow
    ```
 
 2. **Perform Initial Setup**:
    ```bash
-   python setup.py
+   python setup.py --project my_project
    ```
-   *Or simply run `python main.py` to handle setup, Conda environment creation/update, and pipeline execution automatically.*
+   *Or simply run `python main.py --project my_project` to handle setup, Conda environment creation or reuse, and pipeline execution automatically.*
 
 ---
 
@@ -78,7 +78,7 @@ The complete pipeline can be executed in two ways:
 Run the master orchestrator to handle environment checks, project initialization, ligand/receptor preparation, virtual screening, and post-processing sequentially:
 
 ```bash
-python main.py
+python main.py --project my_project
 ```
 
 ### Option B: Step-by-Step Manual Execution
@@ -97,37 +97,37 @@ docking_out.py
 
 1. **Project Setup**:
    ```bash
-   python setup.py
+   python setup.py --project my_project
    ```
    Creates project directory structure, `environment.yml`, `project_config.json`, and `dependencies_report.txt`.
 
 2. **Environment Creation / Activation**:
    ```bash
-   conda env create -f environment.yml
+   conda env create -f my_project/environment.yml
    conda activate vina_pipeline
    ```
-   *(If the environment already exists: `conda env update -n vina_pipeline -f environment.yml --prune`).*
+   *(If the environment already exists: `conda env update -n vina_pipeline -f my_project/environment.yml --prune`).*
 
 3. **Prepare Ligands**:
    ```bash
-   python prepare_ligands.py
+   python prepare_ligands.py --project my_project
    ```
    Provide a CSV file containing `id_ligand` and `smiles` columns.
 
 4. **Prepare Receptor**:
    ```bash
-   python prepare_receptor.py
+   python prepare_receptor.py --project my_project
    ```
    Select local PDB or download via RCSB PDB ID (e.g., `7TLY`), and specify grid box parameters.
 
 5. **Run Virtual Screening**:
    ```bash
-   python docking_screaning.py
+   python docking_screaning.py --project my_project
    ```
 
 6. **Analyze Results**:
    ```bash
-   python docking_out.py
+   python docking_out.py --project my_project
    ```
 
 ---
@@ -258,11 +258,11 @@ A complete test dataset and validation benchmark were conducted in the `test_cov
 
 ### 2. `FileNotFoundError: project_config.json not found`
 - **Cause**: Static path resolution looking only in the working root directory.
-- **Solution**: Dynamic lookup `list(Path(".").glob("*/project_config.json"))` was implemented across all scripts (`prepare_ligands.py`, `prepare_receptor.py`, `docking_screaning.py`, `docking_out.py`).
+- **Solution**: Pass `--project PATH`. Without it, scripts accept a config in the current directory or one unambiguous child project; multiple child projects cause an error.
 
 ### 3. `CondaValueError: prefix already exists`
 - **Cause**: Attempting to recreate an existing Conda environment.
-- **Solution**: `main.py` checks environment status (`check_env_exists()`) and runs `conda env update` if `vina_pipeline` already exists.
+- **Solution**: `main.py` checks environment status (`check_env_exists()`) and reuses `vina_pipeline` if present.
 
 ### 4. `TypeError` in `setup.py`
 - **Cause**: Passing concatenated path instead of distinct arguments to `write_project_config`.
@@ -303,6 +303,14 @@ project_root/
 ```
 
 ---
+
+## Project Paths and Regression Tests
+
+All scripts accept `--project PATH`. The master script asks for the project directory if omitted and forwards the same absolute path to every step. It reuses an existing project. Standalone setup refuses to overwrite an existing config.
+
+The directory containing `project_config.json` is authoritative. New configs store `project_path` as `.`; old absolute paths are ignored so copied projects remain local to their new location. When invoking scripts outside the repository, use an absolute script path and an explicit project path.
+
+Run the project configuration tests with `python -m unittest discover -s tests -v`. They use only the standard library and cover explicit selection, ambiguous discovery, copied paths, setup overwrite protection and consistent child-script arguments. They do not run the chemistry dependencies or validate scientific predictions.
 
 ## Future Improvements
 
