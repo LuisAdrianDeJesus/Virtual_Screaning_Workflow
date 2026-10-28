@@ -24,31 +24,14 @@ import re
 import subprocess
 from pathlib import Path
 
+from project_utils import load_project_from_cli
+
 import pandas as pd
 from tqdm import tqdm
 
 # ==========================================================
 # FUNCTIONS
 # ==========================================================
-
-def load_project():
-
-    project_dirs = list(
-        Path(".").glob("*/project_config.json")
-    )
-
-    if len(project_dirs) == 0:
-
-        raise FileNotFoundError(
-            "project_config.json not found.\nRun setup.py first."
-        )
-
-    config_file = project_dirs[0]
-
-    with open(config_file) as f:
-
-        return json.load(f)
-
 
 def extract_best_affinity(log_file):
 
@@ -141,11 +124,11 @@ print("\n====================================")
 print(" Virtual Screening Pipeline")
 print("====================================\n")
 
-config = load_project()
+config = load_project_from_cli("docking_screaning.py")
 
 project_name = config["project_name"]
 
-project_dir = Path(project_name)
+project_dir = Path(config["project_path"])
 
 # ==========================================================
 # DIRECTORIES
